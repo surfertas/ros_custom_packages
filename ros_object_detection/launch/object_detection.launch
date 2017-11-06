@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+  <rosparam command="load" file="$(find object_detection)/config/models/yolo2.yaml"/>
+
+  <node name="run_inference_yolo2" pkg="object_detection" type="run_inference_yolo2.py" output="screen"/>
+  <node name="object_detection" pkg="object_detection" type="object_detection_node" output="screen"/>
+</launch>
