@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Select model to use from https://github.com/opencv/opencv/tree/master/data/haarcascades 
+    and place in the models dir -->
+    <param name="haar_cascade" type="string" value="$(find face_detect)/models/haarcascade_frontalface_alt.xml"/>
+
+    <!-- Set to false if you dont need to see the bounding boxes displayed on image to save on performance -->
+    <param name="bounding_rectangles" type="bool" value="true"/>
+
+    <node name="face_detect" pkg="face_detect" type="face_detect_node" output="screen"/>
+</launch>

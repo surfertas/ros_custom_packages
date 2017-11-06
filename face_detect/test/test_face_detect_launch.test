@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <test test-name="test_face_detect" pkg="face_detect" type="test_face_detect"/>
+</launch>
