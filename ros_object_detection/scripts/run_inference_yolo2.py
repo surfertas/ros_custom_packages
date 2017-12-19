@@ -1,4 +1,9 @@
 #! /usr/bin/env python
+#! /usr/bin/env python
+# The original PyTorch code for inference was taken from
+# https://github.com/marvis/pytorch-yolo2 and modified for use in this
+# custom ROS package.
+
 from object_detection.srv import *
 import rospy
 from sensor_msgs.msg import Image

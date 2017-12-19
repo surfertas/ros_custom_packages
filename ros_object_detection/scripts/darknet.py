@@ -1,3 +1,8 @@
+#! /usr/bin/env python
+# The original PyTorch code for inference was taken from
+# https://github.com/marvis/pytorch-yolo2 and modified for use in this
+# custom ROS package.
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
