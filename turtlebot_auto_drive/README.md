@@ -1,7 +1,13 @@
 Notes
 ---
 
-12/19/2017 Worked on implementing the model train node, that will continuously
+12/19/2017 Worked on data_buffer.py. The node/service that will handle
+subscribing to the raw images and velocity commands from controller, storing to
+memory, and handling the service calls that will return a batch of data, where
+batch size is specified by the caller. Need to write tests and test with dummy
+data...
+
+12/18/2017 Worked on implementing the model train node, that will continuously
 call the service to get data from the data buffer that will be used for
 training. Keras framework was used for its ease in data augmentation and
 transfer learning on pre-trained models. The model chosen for the first pass is
