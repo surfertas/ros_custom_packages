@@ -1,6 +1,17 @@
 <?xml version="1.0"?>
 <launch>
-  <rosparam command="load" file="$(find turtlebot_auto_drive)/config/config.yaml"/>
+  <!-- Set off_line to false when going live with online training.-->
+  <arg name="off_line" default="false" />
+  <!-- Topics to record to bag when off_line is set to true.-->
+  <arg name="topic_1" value="/webcam/image_raw/compressed" />
+  <arg name="topic_2" value="/mobile_base/commands/velocity" />
 
+  <rosparam command="load" file="$(find turtlebot_auto_drive)/config/config.yaml"/>
+  
+  <!-- Launches node that saves images to disk, and generates training data.-->
   <node name="data_buffer" pkg="turtlebot_auto_drive" type="data_buffer.py" output="screen"/>
+
+  <group if="$(arg off_line)">
+    <node pkg="rosbag" name="record" type="record" args="--duration=2m test.bag $(arg topic_1) $(arg topic_2)" />
+  </group>
 </launch>
