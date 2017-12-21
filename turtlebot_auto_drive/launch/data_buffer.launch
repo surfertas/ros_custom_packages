@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-<!--  <rosparam command="load" file="$(find turtlebot_auto_drive)/config/config.yaml"/> -->
+  <rosparam command="load" file="$(find turtlebot_auto_drive)/config/config.yaml"/>
 
   <node name="data_buffer" pkg="turtlebot_auto_drive" type="data_buffer.py" output="screen"/>
 </launch>

@@ -1,6 +1,12 @@
 Notes
 ---
 
+12/21/2017 Got ApproximateTimeSync to subscribe to image, camera info, and
+command topic. The image is being published by a node running on a raspberry pi,
+while the command topic is being publish by a node running on the mobile robot.
+The image is successfully saved to disk, and the path and associated twist
+command is saved as a feature, label pair.
+
 12/19/2017 Worked on data_buffer.py. The node/service that will handle
 subscribing to the raw images and velocity commands from controller, storing to
 memory, and handling the service calls that will return a batch of data, where
