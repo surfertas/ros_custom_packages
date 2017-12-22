@@ -85,7 +85,9 @@ def get_train_data(train_batch_size):
 
 
 if __name__ == "__main__":
+
     data = get_train_data(1024)
+
     print("Data received.")
 
     model = AutoDriveModel()
