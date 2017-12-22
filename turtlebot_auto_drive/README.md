@@ -1,5 +1,8 @@
 Notes
 ---
+12/22/2017 Added rosbag recording capabilities in order to iterate efficiently
+on model design. Worked on service to get a batch of data from the data buffer
+to be used in training. 
 
 12/21/2017 Got ApproximateTimeSync to subscribe to image, camera info, and
 command topic. The image is being published by a node running on a raspberry pi,
