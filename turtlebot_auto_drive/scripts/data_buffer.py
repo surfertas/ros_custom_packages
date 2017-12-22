@@ -29,15 +29,14 @@ class DataBuffer(object):
 
         # Initialize subscribers.
         self._image_sub = message_filters.Subscriber(self._image_topic, CompressedImage)
-        self._info_sub = message_filters.Subscriber(self._camera_info_topic, CameraInfo)
         self._command_sub = message_filters.Subscriber(self._cmd_topic, Twist)
         rospy.loginfo("Subscribers initialized...")
 
         # https://github.com/ros/ros_comm/pull/433/files
         self._ts = message_filters.ApproximateTimeSynchronizer(
-            [self._image_sub, self._info_sub, self._command_sub],
+            [self._image_sub, self._command_sub],
             10,
-            0.1,
+            2,
             allow_headerless=True
         )
         rospy.loginfo("ApproximateTimeSync initialized...")
@@ -55,9 +54,8 @@ class DataBuffer(object):
         self._img_array = []
         self._cmd_array = []
 
-    def _ts_sub_callback(self, image, info, command):
+    def _ts_sub_callback(self, image, command):
         """ Call back for synchronize image and command subscribers. """
-        # command = [0,0,0,0,0,0]
         # Cant use cv_bridge for message of type CompressedImage
         # http://wiki.ros.org/rospy_tutorials/Tutorials/WritingImagePublisherSubscriber
         np_arr = np.fromstring(image.data, np.uint8)
@@ -82,14 +80,28 @@ class DataBuffer(object):
             os.remove(rmv_path)
             self._img_array[i] = path
             self._cmd_array[i] = command
+            print("Buffer full, replaced.")
 
     def _train_batch_handler(self, req):
         """ Handler for service that returns a batch of data. """
-        i_train = np.random.randint(len(self._img_array), size=req.batch_size)
+        # Need to handle when batch size requested greater than data available
+        # if req.batch_size > len(self._img_array):
+        #    rospy.loginfo("Not enough data to train...")
+        #    return
+        # else:
+            # i_train = np.random.randint(len(self._img_array), size=req.batch_size)
+            # batch = {
+            #    'image_path': self._img_array[i_train],
+            #    'commands': self._cmd_array[i_train]
+            #}
+        # FOR TESTING
+        test_twist = Twist()
+        test_twist.linear.x = 0.5
         batch = {
-            'image_path': self._img_array[i_train],
-            'commands': self._cmd_array[i_train]
+            'image_path': ['test', 'test1', 'test2'],
+            'commands': [test_twist, test_twist, test_twist]
         }
+        print(batch)
         return batch
 
 
@@ -104,7 +116,7 @@ def main():
     if rospy.has_param('buffer_threshold'):
         buffer_threshold = rospy.get_param('buffer_threshold')
     else:
-        buffer_threshold = 10000
+        buffer_threshold = 10
 
     if rospy.has_param('test_image_topic'):
         image_topic = rospy.get_param('test_image_topic')
