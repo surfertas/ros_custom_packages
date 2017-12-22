@@ -8,6 +8,8 @@
 # 4. validate on test...if best score, then save checkpoint
 
 # http://ieeexplore.ieee.org/document/8014253/?reload=true
+import rospy
+from turtlebot_auto_drive.srv import *
 
 
 from keras import __version__
@@ -17,6 +19,7 @@ from keras.layers import Dense, GlobalAveragePooling2D
 from keras.preprocessing.image import ImageDataGenerator
 from keras.optimizers import Adam
 
+import numpy as np
 # https://github.com/keras-team/keras/blob/master/keras/applications/xception.py
 
 
@@ -55,6 +58,34 @@ class AutoDriveModel(object):
         # http://www.cs.cornell.edu/courses/cs4780/2015fa/web/lecturenotes/lecturenote10.html
         self._model.compile(optimizer=Adam(), loss='logcosh', metrics=['accuracy'])
 
+    def _build_graph(self):
+        pass
+
+
+def get_train_data(train_batch_size):
+    rospy.wait_for_service('service_train_batch')
+    rospy.loginfo("Service 'service_train_batch' is available...")
+    try:
+        serve_train_data = rospy.ServiceProxy('service_train_batch', DataBatch)
+        resp = serve_train_data(train_batch_size)
+    except rospy.ServiceException as e:
+        print("Service call failed: {}".format(e))
+
+    # Convert from ROS Twist message type to numpy array
+    to_np_array = lambda cmd: np.array([
+        cmd.linear.x,
+        cmd.linear.y,
+        cmd.linear.z,
+        cmd.angular.x,
+        cmd.angular.y,
+        cmd.angular.z]
+    )
+    commands = map(to_np_array, resp.commands)
+    return resp.image_path, commands
+
 
 if __name__ == "__main__":
+    data = get_train_data(1024)
+    print("Data received.")
+
     model = AutoDriveModel()
