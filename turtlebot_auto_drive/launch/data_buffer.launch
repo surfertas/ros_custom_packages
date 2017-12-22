@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
   <!-- Set off_line to false when going live with online training.-->
-  <arg name="off_line" default="false" />
+  <arg name="off_line" default="true" />
   <!-- Topics to record to bag when off_line is set to true.-->
-  <arg name="bag_file" default="test" />
+  <arg name="bag_dir" default="$(find turtlebot_auto_drive)/bags/off_line" />
   <arg name="topic_1" value="/webcam/image_raw/compressed" />
   <arg name="topic_2" value="/mobile_base/commands/velocity" />
 
@@ -13,6 +13,6 @@
   <node name="data_buffer" pkg="turtlebot_auto_drive" type="data_buffer.py" output="screen"/>
 
   <group if="$(arg off_line)">
-    <node pkg="rosbag" name="record" type="record" args="--duration=2m $(arg bag_file).bag $(arg topic_1) $(arg topic_2)" />
+    <node pkg="rosbag" name="record" type="record" args="--duration=2m -O $(arg bag_dir) $(arg topic_1) $(arg topic_2)" />
   </group>
 </launch>
