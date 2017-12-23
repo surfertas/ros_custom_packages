@@ -1,18 +1,22 @@
 <?xml version="1.0"?>
 <launch>
   <!-- Set off_line to false when going live with online training.-->
-  <arg name="off_line" default="true" />
-  <!-- Topics to record to bag when off_line is set to true.-->
-  <arg name="bag_dir" default="$(find turtlebot_auto_drive)/bags/off_line" />
-  <arg name="topic_1" value="/webcam/image_raw/compressed" />
-  <arg name="topic_2" value="/mobile_base/commands/velocity" />
-
+  <arg name="off_line" default="false" />
   <rosparam command="load" file="$(find turtlebot_auto_drive)/config/config.yaml"/>
-  
+  <rosparam command="load" file="$(find turtlebot_auto_drive)/config/train_config.yaml"/>
+ 
   <!-- Launches node that saves images to disk, and generates training data.-->
   <node name="data_buffer" pkg="turtlebot_auto_drive" type="data_buffer.py" output="screen"/>
+  <node name="util_topic_stamper" pkg="turtlebot_auto_drive" type="util_topic_stamper.py" output="screen" respawn="true"/>
+
+  <!--<node name="model_trainer" pkg="turtlebot_auto_drive" type="model_trainer.py" output="screen"/>-->
 
   <group if="$(arg off_line)">
+    <!-- Topics to record to bag when off_line is set to true.-->
+    <arg name="bag_dir" default="$(find turtlebot_auto_drive)/bags/off_line" />
+    <arg name="topic_1" value="/webcam/image_raw/compressed" />
+    <arg name="topic_2" value="/mobile_base/commands/velocity/stamped" />
+
     <node pkg="rosbag" name="record" type="record" args="--duration=2m -O $(arg bag_dir) $(arg topic_1) $(arg topic_2)" />
   </group>
 </launch>

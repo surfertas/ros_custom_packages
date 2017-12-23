@@ -7,7 +7,7 @@ import message_filters
 import cv2
 from turtlebot_auto_drive.srv import *
 from sensor_msgs.msg import CompressedImage, CameraInfo
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, TwistStamped
 
 import numpy as np
 import os
@@ -29,19 +29,18 @@ class DataBuffer(object):
 
         # Initialize subscribers.
         self._image_sub = message_filters.Subscriber(self._image_topic, CompressedImage)
-        self._command_sub = message_filters.Subscriber(self._cmd_topic, Twist)
+        self._command_sub = message_filters.Subscriber(self._cmd_topic, TwistStamped)
         rospy.loginfo("Subscribers initialized...")
 
         # https://github.com/ros/ros_comm/pull/433/files
-        self._ts = message_filters.ApproximateTimeSynchronizer(
+        self._sync = message_filters.ApproximateTimeSynchronizer(
             [self._image_sub, self._command_sub],
-            10,
-            2,
-            allow_headerless=True
+            queue_size=10,
+            slop=0.2
         )
         rospy.loginfo("ApproximateTimeSync initialized...")
 
-        self._ts.registerCallback(self._ts_sub_callback)
+        self._sync.registerCallback(self._sync_sub_callback)
 
         self._service_train_batch = rospy.Service(
             'service_train_batch',
@@ -54,19 +53,15 @@ class DataBuffer(object):
         self._img_array = []
         self._cmd_array = []
 
-    def _ts_sub_callback(self, image, command):
+    def _sync_sub_callback(self, image, command):
         """ Call back for synchronize image and command subscribers. """
-        # Cant use cv_bridge for message of type CompressedImage
-        # http://wiki.ros.org/rospy_tutorials/Tutorials/WritingImagePublisherSubscriber
         np_arr = np.fromstring(image.data, np.uint8)
-
-        # cv2.CV_LOAD_IMAGE_COLOR == 1
         cv_image = cv2.imdecode(np_arr, 1)
 
         path = self._buffer_path + '/{}.png'.format(rospy.get_rostime())
         cv2.imwrite(path, cv_image)
-        print("Write to {}".format(path))
-        print(command)
+        rospy.loginfo("Write to {}".format(path))
+        print   (command)
         buffer_size = len(self._img_array)
         if buffer_size < self._buffer_threshold:
             self._img_array.append(path)
@@ -80,20 +75,21 @@ class DataBuffer(object):
             os.remove(rmv_path)
             self._img_array[i] = path
             self._cmd_array[i] = command
-            print("Buffer full, replaced.")
+            rospy.loginfo("Buffer full, replaced.")
 
     def _train_batch_handler(self, req):
         """ Handler for service that returns a batch of data. """
         # Need to handle when batch size requested greater than data available
-        # if req.batch_size > len(self._img_array):
-        #    rospy.loginfo("Not enough data to train...")
-        #    return
-        # else:
-            # i_train = np.random.randint(len(self._img_array), size=req.batch_size)
-            # batch = {
-            #    'image_path': self._img_array[i_train],
-            #    'commands': self._cmd_array[i_train]
-            #}
+        """
+        while req.batch_size > len(self._img_array:
+            rospy.loginfo("Waiting for train data to populate...")
+        
+        i_train = np.random.randint(len(self._img_array), size=req.batch_size)
+        batch = {
+            'image_path': self._img_array[i_train],
+            'commands': self._cmd_array[i_train]
+        }
+        """
         # FOR TESTING
         test_twist = Twist()
         test_twist.linear.x = 0.5
@@ -109,14 +105,10 @@ def main():
     rospy.init_node('data_buffer')
     # get path to store data
     if rospy.has_param('data_buffer_path'):
-        data_buffer_path = rospy.get_param('data_buffer_path')
-    else:
-        data_buffer_path = '/tmp/data_buffer'
+        data_buffer_path = rospy.get_param('data_buffer_path','/tmp/data_buffer')
 
     if rospy.has_param('buffer_threshold'):
-        buffer_threshold = rospy.get_param('buffer_threshold')
-    else:
-        buffer_threshold = 10
+        buffer_threshold = rospy.get_param('buffer_threshold', 10)
 
     if rospy.has_param('test_image_topic'):
         image_topic = rospy.get_param('test_image_topic')
@@ -128,25 +120,25 @@ def main():
     else:
         rospy.error('No camera info topic specified.')
 
-    if rospy.has_param('test_cmd_topic'):
-        cmd_topic = rospy.get_param('test_cmd_topic')
+    if rospy.has_param('test_cmd_topic_stamped'):
+        cmd_topic = rospy.get_param('test_cmd_topic_stamped')
     else:
         rospy.error('No command topic specified.')
 
     data_buffer = DataBuffer(
-        data_buffer_path,
+                    data_buffer_path,
                     buffer_threshold,
                     image_topic,
                     camera_info_topic,
                     cmd_topic
     )
 
-    print("---------Params loaded----------")
-    print("Buffer path: {}".format(data_buffer_path))
-    print("Buffer threshold: {}".format(buffer_threshold))
-    print("Image topic: {}".format(image_topic))
-    print("Camera Info topic: {}".format(camera_info_topic))
-    print("Twist command topic: {}".format(cmd_topic))
+    rospy.loginfo("---------Params loaded----------")
+    rospy.loginfo("Buffer path: {}".format(data_buffer_path))
+    rospy.loginfo("Buffer threshold: {}".format(buffer_threshold))
+    rospy.loginfo("Image topic: {}".format(image_topic))
+    rospy.loginfo("Camera Info topic: {}".format(camera_info_topic))
+    rospy.loginfo("Twist command topic: {}".format(cmd_topic))
 
     rospy.spin()
 
