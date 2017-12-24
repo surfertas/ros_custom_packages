@@ -1,66 +1,132 @@
 #!/usr/bin/env python
 # @author Tasuku Miura
 
-# 1. call service, to get a batch of data. # Needs to wait until service is ready.
-# 2. split into train and test
-# 2. data augmentation on train set
-# 3. train on train augmented set.
-# 4. validate on test...if best score, then save checkpoint
-
-# http://ieeexplore.ieee.org/document/8014253/?reload=true
 import rospy
 from turtlebot_auto_drive.srv import *
-
-
-from keras import __version__
-from keras.applications.xception import Xception, preprocess_input
-from keras.models import Model
-from keras.layers import Dense, GlobalAveragePooling2D
-from keras.preprocessing.image import ImageDataGenerator
-from keras.optimizers import Adam
-
+from geometry_msgs.msg import Twist
+import os
+import tensorflow as tf
+import cv2
 import numpy as np
-# https://github.com/keras-team/keras/blob/master/keras/applications/xception.py
 
 
 class AutoDriveModel(object):
-    # Xception only supports the data format 'channels_last' (height, width, channels).
 
-    def __init__(self):
-        self._w_img_dim = 299.
-        self._h_img_dim = 299.
+    def __init__(self, sess, ckpt_dir, mini_batch_size, n_epochs):
+        self._w_img_dim = 480.
+        self._h_img_dim = 640.
 
-        self._n_outputs = 6  # linear and twist commands
-        self._model_setup()
+        # Twist comprised of linear and angular commands
+        self._n_outputs = 6
 
-    def _transfer_learn_setup(self, base_model):
-        # Set all layers as trainable.
-        # Can decide to train only the top layers, and freeze the bottom layers
-        # as an option later.
-        for layer in base_model.layers:
-            layer.trainable = True
+        # Training related params.
+        self._ckpt_dir = ckpt_dir
+        self._sess = sess
+        self._batch_size = mini_batch_size
+        self._n_epochs = n_epochs
 
-        # As we Xception was trained for classification we want to remove the
-        # final fc, and replace with the capability for regression.
-        x = base_model.output
-        x = GlobalAveragePooling2D()(x)
-        x = Dense(512, activation='relu')(x)
-        predictions = Dense(self._n_outputs)(x)
-        model = Model(outputs=predictions, inputs=base_model.input)
-        return model
+        self._build_graph()
 
-    def _model_setup(self):
-        base_model = Xception(weights='imagenet', include_top=False)
-        self._model = self._transfer_learn_setup(base_model)
+    def _init_predict_service(self):
+        # Service to handle calls for prediction, when auto driving.
+        self._service_get_prediction = rospy.Service(
+            'service_get_prediction',
+            PredictTwist,
+            self._get_prediction_handler
+        )
+        rospy.loginfo("Get prediction service initialized...")
 
-        # Want to use huber loss, but Keras doesnt have loss implemented.
-        # logcosh appears to offer similar properties of managing sample outliers.
-        # http://www.cs.cornell.edu/courses/cs4780/2015fa/web/lecturenotes/lecturenote10.html
-        self._model.compile(optimizer=Adam(), loss='logcosh', metrics=['accuracy'])
+    def _get_prediction_handler(self, req):
+        """ Handler for service_get_prediction. """
+        # TODO: Need to modify so that prediction uses latest best model.
+        # https://www.tensorflow.org/programmers_guide/saved_model
+        cv_image = cv2.imdecode(np.fromstring(req.image.data, np.uint8), 1)
+
+        cmd = self._sess.run([self._predict],
+            feed_dict={self._inputs: np.array([cv_image])}
+        )
+        # Convert prediction to ROS message type.
+        msg = Twist()
+        cmd = cmd[0][0]
+        msg.linear.x = cmd[0]
+        msg.linear.y = cmd[1]
+        msg.linear.z = cmd[2]
+        msg.angular.x = cmd[3]
+        msg.angular.y = cmd[4]
+        msg.angular.z = cmd[5]
+        return msg
+
+    def _model(self, x):
+        out = tf.layers.batch_normalization(x)
+        out = tf.layers.conv2d(x, 24, [5, 5], (2, 2), "valid", activation=tf.nn.relu)
+        out = tf.layers.conv2d(out, 36, [5, 5], (2, 2), "valid", activation=tf.nn.relu)
+        out = tf.layers.conv2d(out, 48, [5, 5], (2, 2), "valid", activation=tf.nn.relu)
+        out = tf.layers.conv2d(out, 64, [3, 3], (1, 1), "valid", activation=tf.nn.relu)
+        out = tf.layers.conv2d(out, 64, [3, 3], (1, 1), "valid", activation=tf.nn.relu)
+        out = tf.reshape(out, [-1, 64 * 53 * 73])
+        out = tf.layers.dense(out, 100, tf.nn.relu)
+        out = tf.layers.dense(out, 50, tf.nn.relu)
+        out = tf.layers.dense(out, 10, tf.nn.relu)
+        out = tf.layers.dense(out, self._n_outputs)
+        return out
 
     def _build_graph(self):
-        pass
+        """ Build graph and define placeholders and variables. """
+        self._inputs = tf.placeholder("float", [None, self._w_img_dim, self._h_img_dim, 3])
+        self._targets = tf.placeholder("float", [None, self._n_outputs])
 
+        self._predict = self._model(self._inputs)
+        # Use huber loss to make optimization robust to outliers. Use logcosh if
+        # using Keras as huber loss not available.
+        # http://www.cs.cornell.edu/courses/cs4780/2015fa/web/lecturenotes/lecturenote10.html
+        self._loss = tf.losses.huber_loss(
+            labels=self._targets,
+            predictions=self._predict
+        )
+        self._train = tf.train.AdamOptimizer().minimize(self._loss)
+        rospy.loginfo("Graph built...")
+
+    def _train_admin_setup(self):
+        """ Set up utility objects for saving, writing, etc. """
+        # Saver
+        self._saver = tf.train.Saver()
+
+    def train(self, data):
+        """ Train model and save best model after each training run."""
+        tf.global_variables_initializer().run()
+        # Have to wait until model is initialized to allow inference.
+        self._init_predict_service()
+        self._train_admin_setup()
+
+        # Check if there is a previously saved checkpoint
+        ckpt = tf.train.get_checkpoint_state(os.path.dirname(self._ckpt_dir))
+        if ckpt and ckpt.model_checkpoint_path:
+            rospy.loginfo("Restoring model from: {}".format(ckpt))
+            self._saver.restore(self._sess, ckpt.model_checkpoint_path)
+
+        train_iter, train_next = train_input_fn(
+            data,
+            self._batch_size
+        )
+        rospy.loginfo("Data iterator initialized...")
+
+        for epoch in range(self._n_epochs):
+            self._sess.run(train_iter.initializer)
+            epoch_loss = []
+            while True:
+                try:
+                    mini_batch = self._sess.run(train_next)
+                    loss, _ = self._sess.run([self._loss, self._train],
+                        feed_dict={
+                            self._inputs: mini_batch['images'],
+                            self._targets: mini_batch['commands']}
+                    )
+                    epoch_loss.append(loss)
+                except tf.errors.OutOfRangeError:
+                    break
+            rospy.loginfo("Epoch {}, Loss: {}".format(epoch, np.array(epoch_loss).mean()))
+        # TODO: Validate and check if validation score is historical best. If so
+        # then save checkpoint. 
 
 def get_train_data(train_batch_size):
     rospy.wait_for_service('service_train_batch')
@@ -69,25 +135,75 @@ def get_train_data(train_batch_size):
         serve_train_data = rospy.ServiceProxy('service_train_batch', DataBatch)
         resp = serve_train_data(train_batch_size)
     except rospy.ServiceException as e:
-        print("Service call failed: {}".format(e))
+        rospy.logerr("Service call failed: {}".format(e))
 
     # Convert from ROS Twist message type to numpy array
     to_np_array = lambda cmd: np.array([
-        cmd.linear.x,
-        cmd.linear.y,
-        cmd.linear.z,
-        cmd.angular.x,
-        cmd.angular.y,
-        cmd.angular.z]
+        cmd.twist.linear.x,
+        cmd.twist.linear.y,
+        cmd.twist.linear.z,
+        cmd.twist.angular.x,
+        cmd.twist.angular.y,
+        cmd.twist.angular.z]
     )
-    commands = map(to_np_array, resp.commands)
-    return resp.image_path, commands
 
+    data_set = {
+        'images': np.array(resp.image_path),
+        'commands': np.array(map(to_np_array, resp.commands))
+    }
+    return data_set
+
+
+def train_input_fn(data, mini_batch_size):
+    def _decode_resize(image_path, command):
+        x = tf.to_float(tf.image.decode_image(tf.read_file(image_path)))
+        # TODO: Resize image not working...need to debug
+        # x = tf.image.resize_images(
+        #    x,
+        #    [139, 139],
+        #    tf.image.ResizeMethod.NEAREST_NEIGHBOR
+        #)
+        return {'images': x, 'commands': command}
+
+    images = data['images']
+    commands = data['commands']
+    data_set = tf.data.Dataset.from_tensor_slices((images, commands))
+    data_set = data_set.map(_decode_resize)
+    data_set = data_set.batch(mini_batch_size)
+    # Create iterator
+    iterator = data_set.make_initializable_iterator()
+    next_element = iterator.get_next()
+    return iterator, next_element
+
+
+def main():
+    rospy.init_node('model_trainer')
+    if rospy.has_param('batch_size'):
+        batch_size = rospy.get_param('batch_size', 1024)
+
+    if rospy.has_param('mini_batch_size'):
+        mini_batch_size = rospy.get_param('mini_batch_size', 128)
+
+    if rospy.has_param('n_epoch'):
+        n_epoch = rospy.get_param('n_epoch', 5)
+
+    if rospy.has_param('ckpt_dir'):
+        ckpt_dir = rospy.get_param('ckpt_dir', '/tmp/auto_drive_model')
+
+    rospy.loginfo("----------Model Params------------")
+    rospy.loginfo("Batch size: {}".format(batch_size))
+    rospy.loginfo("Mini batch size: {}".format(mini_batch_size))
+    rospy.loginfo("# of Epochs: {}".format(n_epoch))
+    rospy.loginfo("Checkpoint directory: {}".format(ckpt_dir))
+
+    data = get_train_data(batch_size)
+    rospy.loginfo("Data received.")
+
+    with tf.Session() as sess:
+        model = AutoDriveModel(sess, ckpt_dir, mini_batch_size, n_epoch)
+        model.train(data)
+
+    rospy.spin()
 
 if __name__ == "__main__":
-
-    data = get_train_data(1024)
-
-    print("Data received.")
-
-    model = AutoDriveModel()
+    main()
