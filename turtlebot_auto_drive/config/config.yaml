@@ -1,0 +1,10 @@
+# Using ROS package video_stream_opencv.
+test_image_topic: '/webcam/image_raw/compressed'
+test_camera_info: '/webcam/camera_info'
+test_cmd_topic: '/mobile_base/commands/velocity'
+test_cmd_topic_stamped: '/mobile_base/commands/velocity/stamped'
+ 
+
+# Parameters related to data buffer.
+buffer_threshold: 10000
+

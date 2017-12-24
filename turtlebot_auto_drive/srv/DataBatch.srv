@@ -1,6 +1,6 @@
 int32 batch_size
 ---
 string[] image_path
-geometry_msgs/Twist[] commands
+geometry_msgs/TwistStamped[] commands
 
 
