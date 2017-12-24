@@ -199,6 +199,8 @@ def main():
     data = get_train_data(batch_size)
     rospy.loginfo("Data received.")
 
+    # TODO: Change it so it periodically starts a new training session, with a
+    # new batch of data.
     with tf.Session() as sess:
         model = AutoDriveModel(sess, ckpt_dir, mini_batch_size, n_epoch)
         model.train(data)
