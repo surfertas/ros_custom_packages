@@ -8,8 +8,8 @@
   <!-- Launches node that saves images to disk, and generates training data.-->
   <node name="data_buffer" pkg="turtlebot_auto_drive" type="data_buffer.py" output="screen"/>
   <node name="util_topic_stamper" pkg="turtlebot_auto_drive" type="util_topic_stamper.py" output="screen" respawn="true"/>
-
-  <!--<node name="model_trainer" pkg="turtlebot_auto_drive" type="model_trainer.py" output="screen"/>-->
+  <node name="model_trainer" pkg="turtlebot_auto_drive" type="model_trainer.py" output="screen" respawn="true"/>
+  <node name="predict_twist" pkg="turtlebot_auto_drive" type="predict_twist.py" output="screen" respawn="true"/>
 
   <group if="$(arg off_line)">
     <!-- Topics to record to bag when off_line is set to true.-->
