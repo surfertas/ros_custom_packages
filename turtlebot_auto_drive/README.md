@@ -1,9 +1,9 @@
 Usage
 ---
-Tested on Raspberry Pi 3 running ROS Kinetic on Ubuntu 16.04.2 Mate, and a
+Tested on Raspberry Pi 3 running ROS Kinetic + Ubuntu 16.04.2 Mate, and a
 Turtlebot 2 from Clearpath Robotics controlled by a note PC running Ubuntu
-14.04.2 LTS with ROS version Indigo. ROS master was initiated on a separate PC
-running ROS Kinetic on 16.04.2 LTS Ubuntu.
+14.04.2 LTS + ROS Indigo. ROS master was initiated on a separate PC
+running ROS Kinetic + Ubuntu 16.04.2 LTS.
 
 
 
@@ -27,7 +27,7 @@ PC connected to the Turtlebot.
 
 
 After teleoping the robot around a bit, enough data for training should have
-accumulated, to enable training. You should see output similar to the following:
+accumulated to enable training. You should see output similar to the following:
 
 ```
 core service [/rosout] found
