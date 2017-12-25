@@ -1,0 +1,9 @@
+# Params related to model
+batch_size: 32
+mini_batch_size: 8
+n_epoch: 5
+
+
+# Paths
+data_buffer_path: '/home/tasuku/workspace/ROS/catkin_ws/src/turtlebot_auto_drive/data/images'
+ckpt_dir: '/home/tasuku/workspace/ROS/catkin_ws/src/turtlebot_auto_drive/data/models'
