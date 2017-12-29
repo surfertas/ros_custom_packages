@@ -157,12 +157,20 @@ def get_train_data(train_batch_size):
 def train_input_fn(data, mini_batch_size):
     def _decode_resize(image_path, command):
         x = tf.to_float(tf.image.decode_image(tf.read_file(image_path)))
-        # TODO: Resize image not working...need to debug
-        # x = tf.image.resize_images(
-        #    x,
-        #    [139, 139],
-        #    tf.image.ResizeMethod.NEAREST_NEIGHBOR
-        #)
+        x.set_shape([480,640,3])
+        # Apply some augmentation.
+        x = tf.image.per_image_standardization(x)
+        x = tf.image.random_brightness(x,0.5)
+        x = tf.image.random_contrast(x,0.1,0.8)
+        # Clip to handle over and underflow.
+        x = tf.minimum(x, 1.0)
+        x = tf.maximum(x, 0.0)
+#        x = tf.image.resize_images(
+#            x,
+#            [480, 640], # TODO: resize and change model to accept cropped size,
+#                        # use resize_image_with_crop_or_pad
+#            tf.image.ResizeMethod.NEAREST_NEIGHBOR
+#        )
         return {'images': x, 'commands': command}
 
     images = data['images']
